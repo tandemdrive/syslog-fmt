@@ -1,0 +1,19 @@
+[package]
+authors = ["Brian Heylin <syslog-fmt@heylin.nl>"]
+description = "A formatter for the 5425 syslog protocol"
+edition = "2021"
+keywords = ["syslog", "rfc-5424", "logging", "logs"]
+license = "MIT OR Apache-2.0"
+name = "syslog_fmt"
+readme = "README.md"
+repository = "https://github.com/bheylin/syslog-suite"
+rust-version = "1.60"
+version = "0.1.0"
+
+[dependencies]
+chrono = { version = "0.4.24", default-features = false, features = ["clock"]}
+
+[dev-dependencies]
+arrayvec = "0.7.2"
+assert_matches = "1.5.0"
+env_logger = "0.10.0"
