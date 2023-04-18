@@ -1,5 +1,5 @@
-![docs](https://img.shields.io/badge/docs.rs-syslog-fmt?style=for-the-badge&labelColor=555555&logoColor=white&logo=data:image/svg+xml;base64)
-![crates](https://img.shields.io/crates/v/syslog-fmt.svg?style=for-the-badge&color=fc8d62&logo=rust)
+<img alt="GitHub Workflow Status (with branch)" src="https://img.shields.io/github/actions/workflow/status/tandemdrive/syslog-fmt/ci.yml?branch=main&logo=github&style=for-the-badge">
+![crates](https://img.shields.io/crates/v/syslog_fmt.svg?style=for-the-badge&color=fc8d62&logo=rust)
 ![build status](https://img.shields.io/github/actions/workflow/status/bheylin/syslog-fmt/ci.yml?logo=github&style=for-the-badge)
 
 
