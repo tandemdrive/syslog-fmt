@@ -1,7 +1,7 @@
-//! Formatters to convert a message into a valid syslog message for both the [3164](https://datatracker.ietf.org/doc/html/rfc3164) and [5425](https://datatracker.ietf.org/doc/html/rfc5424) syslog protocols.
+//! Formatter to convert a message into a valid syslog message for the [5425](https://datatracker.ietf.org/doc/html/rfc5424) syslog protocol.
 //!
 //! This crate does not provide a transport method to get the message to the syslog daemon.
-//! The focus is to correctly format a message to transport.
+//! The focus is to correctly format a message ready for transport.
 pub mod v5424;
 
 use std::{fmt, io};
@@ -23,14 +23,14 @@ impl fmt::Display for Error {
 }
 
 /// The Priority value is calculated by first multiplying the Facility
-/// number by 8 and then adding the numerical value of the Severity. For
-/// example, a kernel message (Facility=0) with a Severity of Emergency
-/// (Severity=0) would have a Priority value of 0. Also, a "local use 4"
+/// number by 8 and then adding the numerical value of the Severity.
+///
+/// For example, a kernel message (Facility=0) with a Severity of Emergency
+/// (Severity=0) would have a Priority value of 0. A "local use 4"
 /// message (Facility=20) with a Severity of Notice (Severity=5) would
-/// have a Priority value of 165. In the PRI of a syslog message, these
-/// values would be placed between the angle brackets as <0> and <165>
-/// respectively. The only time a value of "0" follows the "<" is for
-/// the Priority value of "0". Otherwise, leading "0"s MUST NOT be used.
+/// have a Priority value of 165.
+///
+/// [spec](https://datatracker.ietf.org/doc/html/rfc5424#section-6.2.1)
 pub type Priority = u8;
 
 ///  Facility values MUST be in the range of 0 to 23 inclusive
