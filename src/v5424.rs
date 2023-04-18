@@ -203,53 +203,44 @@ const NILVALUE: &str = "-";
 /// The VERSION field denotes the version of the syslog protocol
 /// specification. The version number MUST be incremented for any new
 /// syslog protocol specification that changes any part of the HEADER
-/// format. Changes include the addition or removal of fields, or a
-/// change of syntax or semantics of existing fields. This document uses
-/// a VERSION value of "1". The VERSION values are IANA-assigned
-/// [Section 9.1](https://datatracker.ietf.org/doc/html/rfc5424#section-9.1) via the Standards Action method as described in
-/// [RFC5226](https://datatracker.ietf.org/doc/html/rfc5226).
+/// format.
+///
+/// [spec](https://datatracker.ietf.org/doc/html/rfc5424#section-6.2.2)
 const VERSION: &str = "1";
 
 /// The TIMESTAMP field is a formalized timestamp derived from [RFC3339](https://datatracker.ietf.org/doc/html/rfc3339).
 ///
-/// Whereas [RFC3339](https://datatracker.ietf.org/doc/html/rfc3339) makes allowances for multiple syntaxes, this
-/// document imposes further restrictions. The TIMESTAMP value MUST
+/// Whereas [RFC3339](https://datatracker.ietf.org/doc/html/rfc3339) makes allowances for multiple syntaxes,
+/// the Syslog 5424 spec imposes further restrictions. The TIMESTAMP value MUST
 /// follow these restrictions:
 ///
 /// *  The "T" and "Z" characters in this syntax MUST be upper case.
 /// *  Usage of the "T" character is REQUIRED.
 /// *  Leap seconds MUST NOT be used.
 ///
-/// The originator SHOULD include TIME-SECFRAC if its clock accuracy and
-/// performance permit. The "timeQuality" SD-ID described in [Section 7.1](https://datatracker.ietf.org/doc/html/rfc5424#section-7.1)
-/// allows the originator to specify the accuracy and trustworthiness of
-/// the timestamp.
-///
 /// A syslog application MUST use the NILVALUE as TIMESTAMP if the syslog
 /// application is incapable of obtaining system time.
+///
+/// [spec](https://datatracker.ietf.org/doc/html/rfc5424#section-6.2.3)
 type Timestamp = String;
 
 /// The HOSTNAME field identifies the machine that originally sent the syslog message.
 ///
 /// The HOSTNAME field SHOULD contain the hostname and the domain name of
 /// the originator in the format specified in STD 13 [RFC1034](https://datatracker.ietf.org/doc/html/rfc1034).
-/// This format is called a Fully Qualified Domain Name (FQDN) in this document.
+/// This format is called a Fully Qualified Domain Name (FQDN).
 ///
 /// In practice, not all syslog applications are able to provide an FQDN.
-/// As such, other values MAY also be present in HOSTNAME. This document
-/// makes provisions for using other values in such situations. A syslog
+/// As such, other values MAY also be present in HOSTNAME. Below are
+/// provisions for using other values in such situations. A syslog
 /// application SHOULD provide the most specific available value first.
 /// The order of preference for the contents of the HOSTNAME field is as
 /// follows:
 ///
 /// 1. FQDN
-///
 /// 2. Static IP address
-///
 /// 3. hostname
-///
 /// 4. Dynamic IP address
-///
 /// 5. the NILVALUE
 ///
 /// If an IPv4 address is used, it MUST be in the format of the dotted
@@ -263,6 +254,8 @@ type Timestamp = String;
 /// The NILVALUE SHOULD only be used when the syslog application has no
 /// way to obtain its real hostname. This situation is considered highly
 /// unlikely.
+///
+/// [spec](https://datatracker.ietf.org/doc/html/rfc5424#section-6.2.4)
 type Hostname = str;
 
 /// The APP-NAME field SHOULD identify the device or application that
@@ -276,6 +269,8 @@ type Hostname = str;
 /// or not applicable, on the device.
 ///
 /// This field MAY be operator-assigned.
+///
+/// [spec](https://datatracker.ietf.org/doc/html/rfc5424#section-6.2.5)
 type AppName = str;
 
 /// PROCID is a value that is included in the message, having no
@@ -300,6 +295,8 @@ type AppName = str;
 /// of messages. For example, an SMTP mail transfer agent might put its
 /// SMTP transaction ID into PROCID, which would allow the collector or
 /// relay to group messages based on the SMTP transaction.
+///
+/// [spec](https://datatracker.ietf.org/doc/html/rfc5424#section-6.2.6)
 type ProcId = str;
 
 /// The MSGID SHOULD identify the type of message. For example, a
@@ -308,6 +305,8 @@ type ProcId = str;
 /// MSGID should reflect events of the same semantics. The MSGID itself
 /// is a string without further semantics. It is intended for filtering
 /// messages on a relay or collector.
+///
+/// [spec](https://datatracker.ietf.org/doc/html/rfc5424#section-6.2.7)
 type MsgId = str;
 
 /// The MSG part contains a free-form message that provides information
@@ -329,6 +328,8 @@ type MsgId = str;
 /// with the Unicode byte order mask (BOM), which for UTF-8 is ABNF
 /// %xEF.BB.BF. The syslog application MUST encode in the "shortest
 /// form" and MAY use any valid UTF-8 sequence.
+///
+/// [spec](https://datatracker.ietf.org/doc/html/rfc5424#section-6.4)
 pub enum Msg<'a> {
     /// A BOM will be prefixed to UTF8 encoded strings
     Utf8Str(&'a str),
@@ -373,7 +374,7 @@ impl<'a> From<&'a fmt::Arguments<'a>> for Msg<'a> {
 /// information such as traffic counters or IP addresses.
 ///
 /// STRUCTURED-DATA can contain zero, one, or multiple structured data
-/// elements, which are referred to as "SD-ELEMENT" in this document.
+/// elements, [SdElement].
 ///
 /// In case of zero structured data elements, the STRUCTURED-DATA field
 /// MUST contain the NILVALUE.
@@ -383,22 +384,26 @@ impl<'a> From<&'a fmt::Arguments<'a>> for Msg<'a> {
 /// These are the ASCII codes as defined in "USA Standard Code for Information Interchange"
 /// [ANSI.X3-4.1968](https://datatracker.ietf.org/doc/html/rfc5424#ref-ANSI.X3-4.1968).
 /// An exception is the PARAM-VALUE field, in which UTF-8 encoding MUST be used.
+///
+/// [spec](https://datatracker.ietf.org/doc/html/rfc5424#section-6.3)
 type StructuredData<'a> = Vec<SdElement<'a>>;
 
 /// An SD-ELEMENT consists of a name and parameter name-value pairs. The
 /// name is referred to as SD-ID. The name-value pairs are referred to
-/// as "SD-PARAM".
+/// as [SdParam].
+///
+/// [spec](https://datatracker.ietf.org/doc/html/rfc5424#section-6.3.1)
 #[derive(Debug)]
 struct SdElement<'a> {
     id: &'a SdId,
     params: Vec<SdParam<'a>>,
 }
 
-/// SD-IDs are case-sensitive and uniquely identify the type and purpose
-/// of the SD-ELEMENT. The same SD-ID MUST NOT exist more than once in a
+/// [SdId]s are case-sensitive and uniquely identify the type and purpose
+/// of the [SdElement]. The same [SdId] MUST NOT exist more than once in a
 /// message.
 ///
-/// There are two formats for SD-ID names:
+/// There are two formats for [SdId] names:
 ///
 /// - Names that do not contain an at-sign ("@", ABNF %d64) are reserved
 /// to be assigned by IETF Review as described in BCP26 [RFC5226](https://datatracker.ietf.org/doc/html/rfc5226).
@@ -423,6 +428,8 @@ struct SdElement<'a> {
 /// documentation. Implementors will need to use their own private
 /// enterprise number for the enterpriseId parameter, and when
 /// creating locally extensible SD-ID names.
+///
+/// [spec](https://datatracker.ietf.org/doc/html/rfc5424#section-6.3.2)
 type SdId = str;
 
 /// Each SD-PARAM consists of a name, referred to as PARAM-NAME, and a
@@ -461,6 +468,8 @@ type SdId = str;
 /// not be altered.
 ///
 /// An SD-PARAM MAY be repeated multiple times inside an SD-ELEMENT.
+///
+/// [spec](https://datatracker.ietf.org/doc/html/rfc5424#section-6.3.3)
 type SdParam<'a> = (ParamName<'a>, ParamValue<'a>);
 type ParamName<'a> = &'a str;
 type ParamValue<'a> = &'a str;
