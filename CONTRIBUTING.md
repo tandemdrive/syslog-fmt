@@ -1,5 +1,5 @@
 If you want to create a PR and check your code locally you can use the following commands 
-to approcimate the checks the [CI](.github/workflows/ci.yml) workflow will perform. 
+to approximate the checks the [CI](.github/workflows/ci.yml) workflow will perform. 
 
 ```bash
 cargo test --verbose
