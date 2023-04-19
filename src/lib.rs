@@ -4,7 +4,7 @@
 //! The focus is to correctly format a message ready for transport.
 pub mod v5424;
 
-use std::{fmt, io};
+use std::fmt;
 
 pub struct Error {}
 
@@ -98,14 +98,4 @@ pub enum Severity {
     Info,
     /// debug-level messages
     Debug,
-}
-
-/// Return the executable name.
-pub fn exe_name_from_env() -> io::Result<String> {
-    std::env::current_exe()?
-        .file_name()
-        .ok_or_else(|| io::Error::new(io::ErrorKind::Other, "exe path has no filename"))?
-        .to_str()
-        .map(String::from)
-        .ok_or_else(|| io::Error::new(io::ErrorKind::Other, "exe name is not valid UTF8"))
 }
