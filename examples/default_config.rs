@@ -4,7 +4,7 @@ use syslog_fmt::{v5424, Severity};
 
 fn main() -> io::Result<()> {
     let formatter = v5424::Config {
-        app_name: Some("unix_datagram_example"),
+        app_name: Some("default_config_example"),
         ..Default::default()
     }
     .into_formatter();
