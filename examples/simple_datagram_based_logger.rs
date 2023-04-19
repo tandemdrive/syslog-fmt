@@ -146,12 +146,13 @@ mod unix {
     }
 
     fn setup_syslog_formatter() -> v5424::Formatter {
-        v5424::Formatter::from_config(v5424::Config {
-            facility: Facility::Auth,
+        v5424::Config {
+            facility: Facility::Local0,
             hostname: Some("localhost"),
-            app_name: Some("unix_datagram_example"),
+            app_name: Some("simple_datagram_based_logger"),
             proc_id: std::process::id().to_string().as_str().into(),
-        })
+        }
+        .into_formatter()
     }
 
     /// Try to connect as a datagram socket to any of the given paths.

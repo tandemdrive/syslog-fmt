@@ -18,12 +18,13 @@ mod unix {
 
         let socket = any_datagram_socket(&UNIX_SOCK_PATHS)?;
 
-        let formatter = v5424::Formatter::from_config(v5424::Config {
-            facility: Facility::Auth,
+        let formatter = v5424::Config {
+            facility: Facility::Local0,
             hostname: Some("localhost"),
             app_name: Some("unix_datagram_example"),
             proc_id: std::process::id().to_string().as_str().into(),
-        });
+        }
+        .into_formatter();
 
         let mut buf = Vec::<u8>::new();
         formatter.format(

@@ -7,6 +7,27 @@ use chrono::{DateTime, Local, SecondsFormat};
 
 use crate::{Facility, Priority, Severity};
 
+/// Configuration for the building a `Formatter`
+#[derive(Default)]
+pub struct Config<'a> {
+    pub facility: Facility,
+    pub hostname: Option<&'a Hostname>,
+    pub app_name: Option<&'a AppName>,
+    pub proc_id: Option<&'a ProcId>,
+}
+
+impl<'a> Config<'a> {
+    pub fn into_formatter(self) -> Formatter {
+        self.into()
+    }
+}
+
+impl<'a> From<Config<'a>> for Formatter {
+    fn from(config: Config<'a>) -> Self {
+        Formatter::from_config(config)
+    }
+}
+
 /// Formats a message and optional structured data into a into an [RFC 5424](https://datatracker.ietf.org/doc/html/rfc5424) compliant message.
 #[derive(Clone, Debug)]
 pub struct Formatter {
@@ -17,11 +38,10 @@ pub struct Formatter {
     host_app_proc_id: Box<str>,
 }
 
-pub struct Config<'a> {
-    pub facility: Facility,
-    pub hostname: Option<&'a Hostname>,
-    pub app_name: Option<&'a AppName>,
-    pub proc_id: Option<&'a ProcId>,
+impl Default for Formatter {
+    fn default() -> Self {
+        Config::default().into_formatter()
+    }
 }
 
 impl Formatter {
@@ -57,12 +77,13 @@ impl Formatter {
     /// use syslog_fmt::{Severity, Facility, v5424::{Formatter, Config}};
     ///
     /// let mut buf = Vec::<u8>::new();
-    /// let formatter = Formatter::from_config(Config {
+    /// let formatter = Config {
     ///     facility: Facility::Local7,
     ///     hostname: Some("localhost"),
     ///     app_name: Some("app-name"),
     ///     proc_id: Some("proc-id"),
-    /// });
+    /// }
+    /// .into_formatter();
     /// formatter.format_with_data(
     ///     &mut buf, Severity::Info,
     ///     "this is a message",
@@ -110,12 +131,13 @@ impl Formatter {
     /// use syslog_fmt::{Severity, Facility, v5424::{Config, Formatter}};
     ///
     /// let mut buf = Vec::<u8>::new();
-    /// let formatter = Formatter::from_config(Config {
+    /// let formatter = Config {
     ///     facility: Facility::Local7,
     ///     hostname: Some("localhost"),
     ///     app_name: Some("app-name"),
     ///     proc_id: Some("proc-id"),
-    /// });
+    /// }
+    /// .into_formatter();
     /// formatter.format(&mut buf, Severity::Info, "this is a message", Some("msg-id"));
     /// ```
     pub fn format<'a, W, M>(
@@ -513,12 +535,13 @@ mod tests {
         let app_name = "su";
         let severity = Severity::Crit;
         let msg = "'su root' failed for lonvick on /dev/pts/8";
-        let fmt = Formatter::from_config(Config {
+        let fmt = Config {
             facility: Facility::Auth,
             hostname: hostname.into(),
             app_name: app_name.into(),
             proc_id: None,
-        });
+        }
+        .into_formatter();
         let mut buf = vec![];
         fmt.format(&mut buf, severity, msg, None).unwrap();
 
@@ -546,12 +569,13 @@ mod tests {
         let severity = Severity::Crit;
         let msg_id = "ID47";
         let msg = "'su root' failed for lonvick on /dev/pts/8";
-        let fmt = Formatter::from_config(Config {
+        let fmt = Config {
             facility: Facility::Auth,
             hostname: hostname.into(),
             app_name: app_name.into(),
             proc_id: None,
-        });
+        }
+        .into_formatter();
         let mut buf = vec![];
 
         fmt.format(&mut buf, severity, msg, Some(msg_id)).unwrap();
@@ -579,12 +603,13 @@ mod tests {
         let severity = Severity::Notice;
         let msg_id = "ID47";
         let msg = "An application event log entry...";
-        let fmt = Formatter::from_config(Config {
+        let fmt = Config {
             facility: Facility::Local4,
             hostname: hostname.into(),
             app_name: app_name.into(),
             proc_id: None,
-        });
+        }
+        .into_formatter();
         let mut buf = vec![];
 
         fmt.format_with_data(
@@ -627,12 +652,13 @@ mod tests {
         let severity = Severity::Notice;
         let msg_id = "ID47";
         let msg = "";
-        let fmt = Formatter::from_config(Config {
+        let fmt = Config {
             facility: Facility::Local4,
             hostname: hostname.into(),
             app_name: app_name.into(),
             proc_id: None,
-        });
+        }
+        .into_formatter();
         let mut buf = vec![];
 
         fmt.format_with_data(
@@ -679,12 +705,13 @@ mod tests {
         let app_name = "su";
         let severity = Severity::Crit;
         let msg = "'su root' failed for lonvick on /dev/pts/8";
-        let fmt = Formatter::from_config(Config {
+        let fmt = Config {
             facility: Facility::Auth,
             hostname: hostname.into(),
             app_name: app_name.into(),
             proc_id: None,
-        });
+        }
+        .into_formatter();
         let mut buf = ArrayVec::<u8, 100>::new();
 
         let err = fmt
