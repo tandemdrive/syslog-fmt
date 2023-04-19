@@ -50,7 +50,7 @@ mod unix {
                 }
 
                 if let Err(e) = self.socket.send(&buf) {
-                    eprintln!("{e}")
+                    eprintln!("{e}");
                 }
             }
         }
@@ -85,7 +85,8 @@ mod unix {
                     }
                 }
 
-                std::io::stderr().write(&buf).unwrap();
+                let bytes_written = std::io::stderr().write(&buf).unwrap();
+                debug_assert!(bytes_written > 0);
             }
         }
 
