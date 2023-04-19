@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.2] - 2023-04-19
+
+- Add `simple_datagram_based_logger` example
+- Add CONTRIBUTING.md
+- Change rustdoc 
+  - rephrase comments that quote the spec
+  - include link to spec sections in comments
+- Change README
+  - Add project goal
+  - include link to examples
+  - include Contributing section
+  - include License section
+
 ## [0.1.1] - 2023-04-17
 
 - Moved repo from `bheylin` account to `tandemdrive` org.
