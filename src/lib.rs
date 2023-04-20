@@ -31,9 +31,10 @@ impl fmt::Display for Error {
 /// have a Priority value of 165.
 ///
 /// [spec](https://datatracker.ietf.org/doc/html/rfc5424#section-6.2.1)
-pub type Priority = u8;
+type Priority = u8;
 
-///  Facility values MUST be in the range of 0 to 23 inclusive
+/// The facility argument is used to specify what type of program is logging the message.
+/// This lets the configuration file specify that messages from different facilities will be handled differently.
 #[derive(Copy, Clone, Debug)]
 #[repr(u8)]
 pub enum Facility {
@@ -79,23 +80,36 @@ pub enum Facility {
     Local7 = 23 << 3,
 }
 
+impl Default for Facility {
+    fn default() -> Self {
+        Self::Local0
+    }
+}
+
+/// The severity of the message
 #[derive(Copy, Clone)]
 #[repr(u8)]
 pub enum Severity {
-    /// system is unusable
+    /// System is unusable.
+    /// For example: a panic condition.
     Emerg,
-    /// action must be taken immediately
+    /// Action must be taken immediately.
+    /// For example: A condition that should be corrected immediately, such as a corrupted system database.
     Alert,
-    /// critical conditions
+    /// Critical conditions
+    /// For example: Hard device errors
     Crit,
-    /// error conditions
+    /// Error conditions.
     Err,
-    /// warning conditions
+    /// Warning conditions.
     Warning,
-    /// normal but significant condition
+    /// Normal but significant condition.
+    /// For example: Conditions that are not error conditions, but that may require special handling.
     Notice,
-    /// informational messages
+    /// Informational messages.
+    /// For example: Confirmation that the program is working as expected.
     Info,
-    /// debug-level messages
+    /// Debug-level messages.
+    /// For example: Messages that contain information normally of use only when debugging a program.
     Debug,
 }
