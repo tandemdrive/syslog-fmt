@@ -1,4 +1,4 @@
-[![Crates.io](https://img.shields.io/crates/v/syslog-fmt.svg?logo=rust)](https://crates.io/crates/syslog-fmt "Crates.io version"
+[![Crates.io](https://img.shields.io/crates/v/syslog-fmt.svg?logo=rust)](https://crates.io/crates/syslog-fmt "Crates.io version")
 [![Documentation](https://img.shields.io/docsrs/syslog_fmt/latest?logo=docs.rs)](https://docs.rs/syslog-fmt "Documentation")
 [![unsafe forbidden](https://img.shields.io/badge/unsafe-forbidden-success.svg)](https://github.com/rust-secure-code/safety-dance/)
 [![GitHub actions](https://img.shields.io/github/actions/workflow/status/tandemdrive/syslog-fmt/ci.yml?branch=main)](https://github.com/tandemdrive/syslog-fmt/actions "CI")
