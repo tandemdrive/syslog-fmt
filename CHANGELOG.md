@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.0] - 2023-04-20
+
+- Added `From<Config> for Formatter` and `impl Default` for `Config` and `Formatter`.
+- Removed `fn exe_name_from_env`.
+  This can easily be provided by the user.
+- Removed `Cargo.lock` as this is a library.
+
 ## [0.1.2] - 2023-04-19
 
 - Add `simple_datagram_based_logger` example
