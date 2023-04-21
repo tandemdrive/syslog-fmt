@@ -519,6 +519,8 @@ fn encode_priority(severity: Severity, facility: Facility) -> Priority {
 
 #[cfg(test)]
 mod tests {
+    use std::io::ErrorKind;
+
     use assert_matches::assert_matches;
 
     use super::*;
