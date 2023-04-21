@@ -1,7 +1,7 @@
 //! A Formatter and associated types that converts a message and optional structured data
 //! into an [RFC 5424](https://datatracker.ietf.org/doc/html/rfc5424) compliant message.
 use core::fmt;
-use std::io::{self, ErrorKind};
+use std::io;
 
 use chrono::{DateTime, Local, SecondsFormat};
 
@@ -113,13 +113,7 @@ impl Formatter {
             })
             .collect::<Vec<_>>();
 
-        if let Err(e) = self.format_items(w, severity, msg, msg_id, Some(data), Local::now()) {
-            if e.kind() != ErrorKind::WriteZero {
-                return Err(e);
-            }
-        }
-
-        Ok(())
+        self.format_items(w, severity, msg, msg_id, Some(data), Local::now())
     }
 
     /// Format a syslog 5424 message given a simple string message.
@@ -525,6 +519,8 @@ fn encode_priority(severity: Severity, facility: Facility) -> Priority {
 
 #[cfg(test)]
 mod tests {
+    use std::io::ErrorKind;
+
     use assert_matches::assert_matches;
 
     use super::*;
