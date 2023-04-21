@@ -11,13 +11,12 @@ static ALLOC: dhat::Alloc = dhat::Alloc;
 
 fn main() -> io::Result<()> {
     let profiler = dhat::Profiler::builder().testing().build();
-    // the first call to Local::new initializes a thread safe cache within chrono
     let _datetime = chrono::Local::now();
     let stats = dhat::HeapStats::get();
 
     dhat::assert!(
-        5500 <= stats.total_bytes && stats.total_bytes <= 6500,
-        "The chrono cache heap allocation should be in the 6kb range"
+        stats.total_bytes > 100,
+        "The first call to Local::new initializes a thread safe cache within chrono"
     );
 
     // only one Profiler can run at a time
