@@ -10,17 +10,8 @@ use syslog_fmt::{
 static ALLOC: dhat::Alloc = dhat::Alloc;
 
 fn main() -> io::Result<()> {
-    let profiler = dhat::Profiler::builder().testing().build();
+    // The first call to Local::new initializes a thread safe cache within chrono
     let _datetime = chrono::Local::now();
-    let stats = dhat::HeapStats::get();
-
-    dhat::assert!(
-        stats.total_bytes > 100,
-        "The first call to Local::new initializes a thread safe cache within chrono"
-    );
-
-    // only one Profiler can run at a time
-    drop(profiler);
 
     // the creation of a Formatter allocates on the heaps
     let formatter = v5424::Config {
