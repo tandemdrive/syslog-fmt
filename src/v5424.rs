@@ -326,6 +326,7 @@ impl<'a> From<String> for Timestamp<'a> {
     }
 }
 
+#[cfg(feature = "chrono")]
 impl<'a> From<ChronoLocalTime> for Timestamp<'a> {
     fn from(datetime: ChronoLocalTime) -> Self {
         Self::Chrono(datetime)
