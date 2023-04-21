@@ -1,7 +1,7 @@
 //! A Formatter and associated types that converts a message and optional structured data
 //! into an [RFC 5424](https://datatracker.ietf.org/doc/html/rfc5424) compliant message.
 use core::fmt;
-use std::io;
+use std::{borrow::Cow, io};
 
 use crate::{Facility, Priority, Severity};
 
@@ -85,7 +85,7 @@ impl Formatter {
     /// formatter.format_with_data(
     ///     &mut buf,
     ///     Severity::Info,
-    ///     Timestamp::UseChrono,
+    ///     Timestamp::CreateChronoLocal,
     ///     "this is a message",
     ///     Some("msg-id"),
     ///     vec![("elem-a", vec![("param-a", "value-a")])]
@@ -137,7 +137,7 @@ impl Formatter {
     /// formatter.format(
     ///     &mut buf,
     ///     Severity::Info,
-    ///     Timestamp::UseChrono,
+    ///     Timestamp::CreateChronoLocal,
     ///     "this is a message",
     ///     Some("msg-id")
     /// );
@@ -181,14 +181,14 @@ impl Formatter {
         let prio = encode_priority(severity, *facility);
         let msg_id = msg_id.unwrap_or(NILVALUE);
 
-        let data = if let Some(data) = data {
+        let data: Cow<'a, str> = if let Some(data) = data {
             if data.is_empty() {
-                NILVALUE.to_owned()
+                NILVALUE.into()
             } else {
-                data_to_string(data)
+                data_to_string(data).into()
             }
         } else {
-            NILVALUE.to_owned()
+            NILVALUE.into()
         };
 
         write!(w, "<{prio}>{VERSION} ")?;
@@ -198,19 +198,16 @@ impl Formatter {
         match timestamp {
             #[cfg(feature = "chrono")]
             Timestamp::Chrono(datetime) => {
-                let use_z = false;
-                let s = datetime.to_rfc3339_opts(chrono::SecondsFormat::Micros, use_z);
-                w.write_all(s.as_bytes())?;
+                format_chrono_datetime(w, datetime)?;
             }
             #[cfg(feature = "chrono")]
-            Timestamp::UseChrono => {
-                let timestamp = chrono::Local::now();
-                let use_z = false;
-                let s = timestamp.to_rfc3339_opts(chrono::SecondsFormat::Micros, use_z);
-                w.write_all(s.as_bytes())?;
+            Timestamp::CreateChronoLocal => {
+                let datetime = chrono::Local::now();
+                format_chrono_datetime(w, datetime)?;
             }
             Timestamp::PreformattedStr(s) => w.write_all(s.as_bytes())?,
             Timestamp::PreformattedString(s) => w.write_all(s.as_bytes())?,
+            Timestamp::None => w.write_all(NILVALUE.as_bytes())?,
         };
 
         write!(w, " {host_app_proc_id} {msg_id} {data}")?;
@@ -227,6 +224,33 @@ impl Formatter {
 
         Ok(())
     }
+}
+
+#[cfg(feature = "chrono")]
+fn format_chrono_datetime<W: io::Write>(w: &mut W, datetime: ChronoLocalTime) -> io::Result<()> {
+    use chrono::Timelike;
+
+    const NANOSEC_IN_MILLI: u32 = 1000;
+    const SEC_IN_HOUR: i32 = 3600;
+    const PLUS: &str = "+";
+    const MIN: &str = "-";
+
+    // reuse chrono `Debug` impls which already print ISO 8601 format.
+    let date = datetime.date_naive();
+    let time = datetime.time();
+    let h = time.hour();
+    let m = time.minute();
+    let s = time.second();
+    let ms = time.nanosecond() / NANOSEC_IN_MILLI;
+    let offset_hour = datetime.offset().local_minus_utc() / SEC_IN_HOUR;
+    let sign = if offset_hour >= 0 { PLUS } else { MIN };
+
+    write!(
+        w,
+        "{date:?}T{h:02}:{m:02}:{s:02}.{ms:06}{sign}{offset_hour:02}:00"
+    )?;
+
+    Ok(())
 }
 
 /// Write a UTF8 string with a BOM prefixed as stated in the spec
@@ -270,18 +294,24 @@ type ChronoLocalTime = chrono::DateTime<chrono::Local>;
 ///
 /// [spec](https://datatracker.ietf.org/doc/html/rfc5424#section-6.2.3)
 pub enum Timestamp<'a> {
-    /// Provide a datatime to be formatted
+    /// Provide a datatime to be formatted.
+    /// A custom formatter is used that does not perform any heap allcations
     #[cfg(feature = "chrono")]
     Chrono(ChronoLocalTime),
     /// The formatter will create a new chrono::DateTime<Local>
+    /// A custom formatter is used that does not perform any heap allcations
     #[cfg(feature = "chrono")]
-    UseChrono,
-    /// Provive a preformatted timestamp.
+    CreateChronoLocal,
+    /// Provide a preformatted timestamp.
+    /// This string is not validated. The onus is on the provider to verify it as an RFC3339 timestamp
     /// See the [Timestamp] docs above for details on how to format a timestamp.
     PreformattedStr(&'a str),
-    /// Provive a preformatted timestamp.
+    /// Provide a preformatted timestamp.
+    /// This string is not validated. The onus is on the provider to verify it as an RFC3339 timestamp
     /// See the [Timestamp] docs above for details on how to format a timestamp.
     PreformattedString(String),
+    /// No timestamp can be provided.
+    None,
 }
 
 impl<'a> From<&'a str> for Timestamp<'a> {
@@ -423,25 +453,31 @@ pub enum Msg<'a> {
 
 impl<'a> From<&'a str> for Msg<'a> {
     fn from(s: &'a str) -> Self {
-        Msg::Utf8Str(s)
+        Self::Utf8Str(s)
     }
 }
 
 impl<'a> From<String> for Msg<'a> {
     fn from(s: String) -> Self {
-        Msg::Utf8String(s)
+        Self::Utf8String(s)
+    }
+}
+
+impl<'a> From<&'a [u8]> for Msg<'a> {
+    fn from(bytes: &'a [u8]) -> Self {
+        Self::NonUnicodeBytes(bytes)
     }
 }
 
 impl<'a> From<fmt::Arguments<'a>> for Msg<'a> {
     fn from(args: fmt::Arguments<'a>) -> Self {
-        Msg::FmtArguments(args)
+        Self::FmtArguments(args)
     }
 }
 
 impl<'a> From<&'a fmt::Arguments<'a>> for Msg<'a> {
     fn from(args: &'a fmt::Arguments<'a>) -> Self {
-        Msg::FmtArgumentsRef(args)
+        Self::FmtArgumentsRef(args)
     }
 }
 
@@ -588,6 +624,23 @@ mod tests {
     use super::*;
 
     #[test]
+    #[cfg(feature = "chrono")]
+    fn should_format_date_like_chrono() {
+        let datetime = chrono::Local::now();
+        let use_z = false;
+        let chrono_s = datetime.to_rfc3339_opts(chrono::SecondsFormat::Micros, use_z);
+
+        let mut buf = Vec::with_capacity(32);
+        format_chrono_datetime(&mut buf, datetime).unwrap();
+        let s = String::from_utf8(buf).unwrap();
+
+        assert_eq!(
+            chrono_s, s,
+            "syslog-fmt date formatter should be char for char equal to Chrono"
+        );
+    }
+
+    #[test]
     fn should_format_message_without_msg_id() {
         let hostname = "mymachine.example.com";
         let app_name = "su";
@@ -601,7 +654,7 @@ mod tests {
         }
         .into_formatter();
         let mut buf = vec![];
-        fmt.format(&mut buf, severity, Timestamp::UseChrono, msg, None)
+        fmt.format(&mut buf, severity, Timestamp::CreateChronoLocal, msg, None)
             .unwrap();
 
         let parts = parse_syslog_message(&buf);
@@ -637,8 +690,14 @@ mod tests {
         .into_formatter();
         let mut buf = vec![];
 
-        fmt.format(&mut buf, severity, Timestamp::UseChrono, msg, Some(msg_id))
-            .unwrap();
+        fmt.format(
+            &mut buf,
+            severity,
+            Timestamp::CreateChronoLocal,
+            msg,
+            Some(msg_id),
+        )
+        .unwrap();
 
         let parts = parse_syslog_message(&buf);
         assert_matches!(
@@ -675,7 +734,7 @@ mod tests {
         fmt.format_with_data(
             &mut buf,
             severity,
-            Timestamp::UseChrono,
+            Timestamp::CreateChronoLocal,
             msg,
             Some(msg_id),
             vec![(
@@ -725,7 +784,7 @@ mod tests {
         fmt.format_with_data(
             &mut buf,
             severity,
-            Timestamp::UseChrono,
+            Timestamp::CreateChronoLocal,
             msg,
             Some(msg_id),
             vec![(

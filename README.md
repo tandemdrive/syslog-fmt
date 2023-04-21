@@ -17,6 +17,7 @@ Read through the [examples](examples) to see basic usages of the formatter with 
 ## Why this crate?
 
 - Minimal [dependencies](Cargo.toml)
+- No [heap](tests/assert_no_heap_allocations.rs) allocations are performed when logging without structured data.
 - 100% safe Rust 🦀code upheld by [clippy](.cargo/config.toml) [workflow](.github/workflows/ci.yml)
 
 

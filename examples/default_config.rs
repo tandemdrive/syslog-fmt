@@ -16,7 +16,7 @@ fn main() -> io::Result<()> {
     formatter.format(
         &mut buf,
         Severity::Info,
-        Timestamp::UseChrono,
+        Timestamp::CreateChronoLocal,
         "'su root' failed for lonvick on /dev/pts/8",
         None,
     )?;

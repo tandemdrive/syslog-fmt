@@ -43,7 +43,7 @@ mod unix {
                 let res = self.formatter.format(
                     &mut *buf,
                     Severity::Info,
-                    Timestamp::UseChrono,
+                    Timestamp::CreateChronoLocal,
                     record.args(),
                     None,
                 );
@@ -83,7 +83,7 @@ mod unix {
                 let res = self.formatter.format(
                     &mut *buf,
                     Severity::Info,
-                    Timestamp::UseChrono,
+                    Timestamp::CreateChronoLocal,
                     record.args(),
                     None,
                 );
