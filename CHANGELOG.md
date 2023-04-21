@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- Removed unused Error type.
+
 ## [0.2.0] - 2023-04-20
 
 - Added `From<Config> for Formatter` and `impl Default` for `Config` and `Formatter`.

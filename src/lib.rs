@@ -4,24 +4,6 @@
 //! The focus is to correctly format a message ready for transport.
 pub mod v5424;
 
-use std::fmt;
-
-pub struct Error {}
-
-impl std::error::Error for Error {}
-
-impl fmt::Debug for Error {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("error").finish()
-    }
-}
-
-impl fmt::Display for Error {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str("Error")
-    }
-}
-
 /// The Priority value is calculated by first multiplying the Facility
 /// number by 8 and then adding the numerical value of the Severity.
 ///
