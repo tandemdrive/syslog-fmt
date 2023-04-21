@@ -14,7 +14,7 @@ the separate concerns of formatting and transport.
 
 Read through the [examples](examples) to see basic usages of the formatter with various transports.
 
-# Why this crate?
+## Why this crate?
 
 - Minimal [dependencies](Cargo.toml)
 - 100% safe Rust 🦀code upheld by [clippy](.cargo/config.toml) [workflow](.github/workflows/ci.yml)
