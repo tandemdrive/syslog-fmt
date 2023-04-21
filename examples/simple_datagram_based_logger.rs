@@ -17,7 +17,10 @@ mod unix {
     use arrayvec::ArrayVec;
     use is_terminal::IsTerminal;
     use parking_lot::Mutex;
-    use syslog_fmt::{v5424, Facility, Severity};
+    use syslog_fmt::{
+        v5424::{self, Timestamp},
+        Facility, Severity,
+    };
 
     const SYSLOG_MSG_BUFFER_LEN: usize = 1024;
 
@@ -37,9 +40,13 @@ mod unix {
             if self.enabled(record.metadata()) {
                 let mut buf = self.buf.lock();
 
-                let res = self
-                    .formatter
-                    .format(&mut *buf, Severity::Info, record.args(), None);
+                let res = self.formatter.format(
+                    &mut *buf,
+                    Severity::Info,
+                    Timestamp::UseChrono,
+                    record.args(),
+                    None,
+                );
 
                 if let Err(e) = res {
                     // ignore when the buffer runs over capcity
@@ -73,9 +80,13 @@ mod unix {
             if self.enabled(record.metadata()) {
                 let mut buf = self.buf.lock();
 
-                let res = self
-                    .formatter
-                    .format(&mut *buf, Severity::Info, record.args(), None);
+                let res = self.formatter.format(
+                    &mut *buf,
+                    Severity::Info,
+                    Timestamp::UseChrono,
+                    record.args(),
+                    None,
+                );
 
                 if let Err(e) = res {
                     // ignore when the buffer runs over capcity

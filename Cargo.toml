@@ -10,8 +10,12 @@ repository = "https://github.com/tandemdrive/syslog-fmt"
 rust-version = "1.60"
 version = "0.2.0"
 
+[features]
+default = ["chrono"]
+chrono = ["dep:chrono"]
+
 [dependencies]
-chrono = { version = "0.4.24", default-features = false, features = ["clock"]}
+chrono = { version = "0.4.24", optional = true, default-features = false, features = ["clock"]}
 
 [dev-dependencies]
 arrayvec = "0.7.2"

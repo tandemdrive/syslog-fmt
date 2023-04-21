@@ -11,7 +11,10 @@ fn main() -> io::Result<()> {
 mod unix {
     use std::{io, os::unix::net::UnixDatagram};
 
-    use syslog_fmt::{v5424, Facility, Severity};
+    use syslog_fmt::{
+        v5424::{self, Timestamp},
+        Facility, Severity,
+    };
 
     pub fn run() -> io::Result<()> {
         const UNIX_SOCK_PATHS: [&str; 3] = ["/dev/log", "/var/run/syslog", "/var/run/log"];
@@ -30,6 +33,7 @@ mod unix {
         formatter.format(
             &mut buf,
             Severity::Info,
+            Timestamp::UseChrono,
             "'su root' failed for lonvick on /dev/pts/8",
             None,
         )?;

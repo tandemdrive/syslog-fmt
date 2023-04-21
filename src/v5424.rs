@@ -3,8 +3,6 @@
 use core::fmt;
 use std::io;
 
-use chrono::{DateTime, Local, SecondsFormat};
-
 use crate::{Facility, Priority, Severity};
 
 /// Configuration for the building a `Formatter`
@@ -74,7 +72,7 @@ impl Formatter {
     /// ```rust
     /// use std::io::Write;
     ///
-    /// use syslog_fmt::{Severity, Facility, v5424::{Formatter, Config}};
+    /// use syslog_fmt::{Severity, Facility, v5424::{Config, Formatter, Timestamp}};
     ///
     /// let mut buf = Vec::<u8>::new();
     /// let formatter = Config {
@@ -85,25 +83,29 @@ impl Formatter {
     /// }
     /// .into_formatter();
     /// formatter.format_with_data(
-    ///     &mut buf, Severity::Info,
+    ///     &mut buf,
+    ///     Severity::Info,
+    ///     Timestamp::UseChrono,
     ///     "this is a message",
     ///     Some("msg-id"),
     ///     vec![("elem-a", vec![("param-a", "value-a")])]
     /// );
     /// ```
-    pub fn format_with_data<'a, I, P, W, M>(
+    pub fn format_with_data<'a, W, TS, M, I, P>(
         &self,
         w: &mut W,
         severity: Severity,
+        timestamp: TS,
         msg: M,
         msg_id: Option<&MsgId>,
         data: I,
     ) -> io::Result<()>
     where
+        W: io::Write,
+        TS: Into<Timestamp<'a>>,
+        M: Into<Msg<'a>>,
         I: IntoIterator<Item = (&'a SdId, P)>,
         P: IntoIterator<Item = SdParam<'a>>,
-        W: io::Write,
-        M: Into<Msg<'a>>,
     {
         let data = data
             .into_iter()
@@ -113,7 +115,7 @@ impl Formatter {
             })
             .collect::<Vec<_>>();
 
-        self.format_items(w, severity, msg, msg_id, Some(data), Local::now())
+        self.format_items(w, severity, timestamp, msg, msg_id, Some(data))
     }
 
     /// Format a syslog 5424 message given a simple string message.
@@ -122,7 +124,7 @@ impl Formatter {
     /// ```rust
     /// use std::io::Write;
     ///
-    /// use syslog_fmt::{Severity, Facility, v5424::{Config, Formatter}};
+    /// use syslog_fmt::{Severity, Facility, v5424::{Config, Formatter, Timestamp}};
     ///
     /// let mut buf = Vec::<u8>::new();
     /// let formatter = Config {
@@ -132,34 +134,43 @@ impl Formatter {
     ///     proc_id: Some("proc-id"),
     /// }
     /// .into_formatter();
-    /// formatter.format(&mut buf, Severity::Info, "this is a message", Some("msg-id"));
+    /// formatter.format(
+    ///     &mut buf,
+    ///     Severity::Info,
+    ///     Timestamp::UseChrono,
+    ///     "this is a message",
+    ///     Some("msg-id")
+    /// );
     /// ```
-    pub fn format<'a, W, M>(
+    pub fn format<'a, W, TS, M>(
         &self,
         w: &mut W,
         severity: Severity,
+        timestamp: TS,
         msg: M,
         msg_id: Option<&MsgId>,
     ) -> io::Result<()>
     where
         W: io::Write,
+        TS: Into<Timestamp<'a>>,
         M: Into<Msg<'a>>,
     {
-        self.format_items(w, severity, msg, msg_id, None, Local::now())
+        self.format_items(w, severity, timestamp, msg, msg_id, None)
     }
 
     /// Format a syslog [5424](https://datatracker.ietf.org/doc/html/rfc5424#section-6) message
-    fn format_items<'a, W, M>(
+    fn format_items<'a, W, TS, M>(
         &self,
         w: &mut W,
         severity: Severity,
+        timestamp: TS,
         msg: M,
         msg_id: Option<&MsgId>,
         data: Option<StructuredData<'a>>,
-        timestamp: DateTime<Local>,
     ) -> io::Result<()>
     where
         W: io::Write,
+        TS: Into<Timestamp<'a>>,
         M: Into<Msg<'a>>,
     {
         let Self {
@@ -167,8 +178,6 @@ impl Formatter {
             host_app_proc_id,
         } = self;
 
-        let use_z = false;
-        let timestamp: Timestamp = timestamp.to_rfc3339_opts(SecondsFormat::Micros, use_z);
         let prio = encode_priority(severity, *facility);
         let msg_id = msg_id.unwrap_or(NILVALUE);
 
@@ -182,10 +191,29 @@ impl Formatter {
             NILVALUE.to_owned()
         };
 
-        write!(
-            w,
-            "<{prio}>{VERSION} {timestamp} {host_app_proc_id} {msg_id} {data}"
-        )?;
+        write!(w, "<{prio}>{VERSION} ")?;
+
+        let timestamp = timestamp.into();
+
+        match timestamp {
+            #[cfg(feature = "chrono")]
+            Timestamp::Chrono(datetime) => {
+                let use_z = false;
+                let s = datetime.to_rfc3339_opts(chrono::SecondsFormat::Micros, use_z);
+                w.write_all(s.as_bytes())?;
+            }
+            #[cfg(feature = "chrono")]
+            Timestamp::UseChrono => {
+                let timestamp = chrono::Local::now();
+                let use_z = false;
+                let s = timestamp.to_rfc3339_opts(chrono::SecondsFormat::Micros, use_z);
+                w.write_all(s.as_bytes())?;
+            }
+            Timestamp::PreformattedStr(s) => w.write_all(s.as_bytes())?,
+            Timestamp::PreformattedString(s) => w.write_all(s.as_bytes())?,
+        };
+
+        write!(w, " {host_app_proc_id} {msg_id} {data}")?;
 
         let msg = msg.into();
 
@@ -224,6 +252,9 @@ const NILVALUE: &str = "-";
 /// [spec](https://datatracker.ietf.org/doc/html/rfc5424#section-6.2.2)
 const VERSION: &str = "1";
 
+#[cfg(feature = "chrono")]
+type ChronoLocalTime = chrono::DateTime<chrono::Local>;
+
 /// The TIMESTAMP field is a formalized timestamp derived from [RFC3339](https://datatracker.ietf.org/doc/html/rfc3339).
 ///
 /// Whereas [RFC3339](https://datatracker.ietf.org/doc/html/rfc3339) makes allowances for multiple syntaxes,
@@ -238,7 +269,38 @@ const VERSION: &str = "1";
 /// application is incapable of obtaining system time.
 ///
 /// [spec](https://datatracker.ietf.org/doc/html/rfc5424#section-6.2.3)
-type Timestamp = String;
+pub enum Timestamp<'a> {
+    /// Provide a datatime to be formatted
+    #[cfg(feature = "chrono")]
+    Chrono(ChronoLocalTime),
+    /// The formatter will create a new chrono::DateTime<Local>
+    #[cfg(feature = "chrono")]
+    UseChrono,
+    /// Provive a preformatted timestamp.
+    /// See the [Timestamp] docs above for details on how to format a timestamp.
+    PreformattedStr(&'a str),
+    /// Provive a preformatted timestamp.
+    /// See the [Timestamp] docs above for details on how to format a timestamp.
+    PreformattedString(String),
+}
+
+impl<'a> From<&'a str> for Timestamp<'a> {
+    fn from(s: &'a str) -> Self {
+        Self::PreformattedStr(s)
+    }
+}
+
+impl<'a> From<String> for Timestamp<'a> {
+    fn from(s: String) -> Self {
+        Self::PreformattedString(s)
+    }
+}
+
+impl<'a> From<ChronoLocalTime> for Timestamp<'a> {
+    fn from(datetime: ChronoLocalTime) -> Self {
+        Self::Chrono(datetime)
+    }
+}
 
 /// The HOSTNAME field identifies the machine that originally sent the syslog message.
 ///
@@ -539,7 +601,8 @@ mod tests {
         }
         .into_formatter();
         let mut buf = vec![];
-        fmt.format(&mut buf, severity, msg, None).unwrap();
+        fmt.format(&mut buf, severity, Timestamp::UseChrono, msg, None)
+            .unwrap();
 
         let parts = parse_syslog_message(&buf);
 
@@ -574,7 +637,8 @@ mod tests {
         .into_formatter();
         let mut buf = vec![];
 
-        fmt.format(&mut buf, severity, msg, Some(msg_id)).unwrap();
+        fmt.format(&mut buf, severity, Timestamp::UseChrono, msg, Some(msg_id))
+            .unwrap();
 
         let parts = parse_syslog_message(&buf);
         assert_matches!(
@@ -611,6 +675,7 @@ mod tests {
         fmt.format_with_data(
             &mut buf,
             severity,
+            Timestamp::UseChrono,
             msg,
             Some(msg_id),
             vec![(
@@ -660,6 +725,7 @@ mod tests {
         fmt.format_with_data(
             &mut buf,
             severity,
+            Timestamp::UseChrono,
             msg,
             Some(msg_id),
             vec![(
@@ -694,9 +760,7 @@ mod tests {
     fn should_truncate_message_to_buffer_size() {
         use arrayvec::ArrayVec;
 
-        let timestamp = "1985-04-12T23:20:50.52Z"
-            .parse::<DateTime<Local>>()
-            .unwrap();
+        let timestamp = "1985-04-12T23:20:50.52Z";
         let hostname = "mymachine.example.com";
         let app_name = "su";
         let severity = Severity::Crit;
@@ -711,7 +775,7 @@ mod tests {
         let mut buf = ArrayVec::<u8, 100>::new();
 
         let err = fmt
-            .format_items(&mut buf, severity, msg, None, None, timestamp)
+            .format_items(&mut buf, severity, timestamp, msg, None, None)
             .unwrap_err();
 
         assert_eq!(
@@ -732,7 +796,7 @@ mod tests {
                 proc_id: NILVALUE,
                 msg_id: NILVALUE,
                 data: NILVALUE,
-                msg: "'su root' failed for lonvic"
+                msg: "'su root' failed for lonvick on /dev"
             } if timestamp == timestamp && hostname == hostname && app_name == app_name
         );
     }

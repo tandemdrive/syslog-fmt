@@ -1,6 +1,9 @@
 use std::io;
 
-use syslog_fmt::{v5424, Severity};
+use syslog_fmt::{
+    v5424::{self, Timestamp},
+    Severity,
+};
 
 fn main() -> io::Result<()> {
     let formatter = v5424::Config {
@@ -13,6 +16,7 @@ fn main() -> io::Result<()> {
     formatter.format(
         &mut buf,
         Severity::Info,
+        Timestamp::UseChrono,
         "'su root' failed for lonvick on /dev/pts/8",
         None,
     )?;
