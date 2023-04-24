@@ -230,7 +230,7 @@ impl Formatter {
 fn format_chrono_datetime<W: io::Write>(w: &mut W, datetime: ChronoLocalTime) -> io::Result<()> {
     use chrono::Timelike;
 
-    const NANOSEC_IN_MILLI: u32 = 1000;
+    const MILLI_IN_SEC: u32 = 1000;
     const SEC_IN_HOUR: i32 = 3600;
     const PLUS: &str = "+";
     const MIN: &str = "-";
@@ -241,7 +241,7 @@ fn format_chrono_datetime<W: io::Write>(w: &mut W, datetime: ChronoLocalTime) ->
     let h = time.hour();
     let m = time.minute();
     let s = time.second();
-    let ms = time.nanosecond() / NANOSEC_IN_MILLI;
+    let ms = time.nanosecond() / MILLI_IN_SEC;
     let offset_hour = datetime.offset().local_minus_utc() / SEC_IN_HOUR;
     let sign = if offset_hour >= 0 { PLUS } else { MIN };
 
