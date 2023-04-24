@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- Added `timestamp` arg for format fns
+  The `Timestamp` type accepts preformatted timestamps in 
+  `&str`, `String` and `&[u8]` forms
+- Changed the timestamp formatting to use a custom
+  formatter that doesn't allocate on the heap.
+- Changed formatting a messsage without structured data does not use any
+  heap allocations. See the test folder for verifications of this.
 - Removed unused Error type.
 
 ## [0.2.0] - 2023-04-20

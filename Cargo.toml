@@ -10,13 +10,26 @@ repository = "https://github.com/tandemdrive/syslog-fmt"
 rust-version = "1.60"
 version = "0.2.0"
 
+[features]
+default = ["chrono"]
+chrono = ["dep:chrono"]
+
 [dependencies]
-chrono = { version = "0.4.24", default-features = false, features = ["clock"]}
+chrono = { version = "0.4.24", optional = true, default-features = false, features = ["clock"]}
 
 [dev-dependencies]
 arrayvec = "0.7.2"
 assert_matches = "1.5.0"
+dhat = "0.3.2"
 env_logger = "0.10.0"
 is-terminal = "0.4.7"
 log = "0.4.17"
 parking_lot = "0.12.1"
+
+[[test]]
+name = "assert_no_heap_allocations"
+harness = false
+
+[[test]]
+name = "assert_heap_allocations_with_structured_data"
+harness = false
