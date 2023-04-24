@@ -203,7 +203,7 @@ impl Formatter {
             #[cfg(feature = "chrono")]
             Timestamp::CreateChronoLocal => {
                 let datetime = chrono::Local::now();
-                format_chrono_datetime(w, datetime)?;
+                format_chrono_datetime(w, &datetime)?;
             }
             Timestamp::PreformattedStr(s) => w.write_all(s.as_bytes())?,
             Timestamp::PreformattedString(s) => w.write_all(s.as_bytes())?,
@@ -227,7 +227,7 @@ impl Formatter {
 }
 
 #[cfg(feature = "chrono")]
-fn format_chrono_datetime<W: io::Write>(w: &mut W, datetime: ChronoLocalTime) -> io::Result<()> {
+fn format_chrono_datetime<W: io::Write>(w: &mut W, datetime: &ChronoLocalTime) -> io::Result<()> {
     use chrono::Timelike;
 
     const MILLI_IN_SEC: u32 = 1000;
@@ -297,7 +297,7 @@ pub enum Timestamp<'a> {
     /// Provide a datatime to be formatted.
     /// A custom formatter is used that does not perform any heap allcations
     #[cfg(feature = "chrono")]
-    Chrono(ChronoLocalTime),
+    Chrono(&'a ChronoLocalTime),
     /// The formatter will create a new chrono::DateTime<Local>
     /// A custom formatter is used that does not perform any heap allcations
     #[cfg(feature = "chrono")]
@@ -327,8 +327,8 @@ impl<'a> From<String> for Timestamp<'a> {
 }
 
 #[cfg(feature = "chrono")]
-impl<'a> From<ChronoLocalTime> for Timestamp<'a> {
-    fn from(datetime: ChronoLocalTime) -> Self {
+impl<'a> From<&'a ChronoLocalTime> for Timestamp<'a> {
+    fn from(datetime: &'a ChronoLocalTime) -> Self {
         Self::Chrono(datetime)
     }
 }
@@ -632,7 +632,7 @@ mod tests {
         let chrono_s = datetime.to_rfc3339_opts(chrono::SecondsFormat::Micros, use_z);
 
         let mut buf = Vec::with_capacity(32);
-        format_chrono_datetime(&mut buf, datetime).unwrap();
+        format_chrono_datetime(&mut buf, &datetime).unwrap();
         let s = String::from_utf8(buf).unwrap();
 
         assert_eq!(
