@@ -224,7 +224,7 @@ impl Formatter {
 ///
 /// An SD-ELEMENT consists of a name and parameter name-value pairs. The
 /// name is referred to as SD-ID. The name-value pairs are referred to
-/// as [SdParam].
+/// as SD-PARAM.
 ///
 /// [spec](https://datatracker.ietf.org/doc/html/rfc5424#section-6.3.1)
 pub fn write_data<'a, W, I, P>(w: &mut W, data: I) -> io::Result<()>
@@ -386,7 +386,7 @@ pub enum Timestamp<'a> {
     /// A custom formatter is used that does not perform any heap allcations
     #[cfg(feature = "chrono")]
     Chrono(&'a ChronoLocalTime),
-    /// The formatter will create a new chrono::DateTime<Local>
+    /// The formatter will create a new `chrono::DateTime<Local>`
     /// A custom formatter is used that does not perform any heap allcations
     #[cfg(feature = "chrono")]
     CreateChronoLocal,
@@ -571,7 +571,7 @@ impl<'a> From<&'a fmt::Arguments<'a>> for Msg<'a> {
 }
 
 /// [SdId]s are case-sensitive and uniquely identify the type and purpose
-/// of the [SdElement]. The same [SdId] MUST NOT exist more than once in a
+/// of the SD-ELEMENT. The same [SdId] MUST NOT exist more than once in a
 /// message.
 ///
 /// There are two formats for [SdId] names:
