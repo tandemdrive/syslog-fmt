@@ -13,7 +13,7 @@ fn main() -> io::Result<()> {
     .into_formatter();
 
     let mut buf = Vec::<u8>::new();
-    formatter.format(
+    formatter.write_without_data(
         &mut buf,
         Severity::Info,
         Timestamp::CreateChronoLocal,

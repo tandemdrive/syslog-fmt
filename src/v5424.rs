@@ -1,9 +1,11 @@
 //! A Formatter and associated types that converts a message and optional structured data
 //! into an [RFC 5424](https://datatracker.ietf.org/doc/html/rfc5424) compliant message.
 use core::fmt;
-use std::{borrow::Cow, io};
+use std::io;
 
 use crate::{Facility, Priority, Severity};
+
+const SPACE_BYTE: u8 = 0x20;
 
 /// Configuration for the building a `Formatter`
 #[derive(Default)]
@@ -82,7 +84,7 @@ impl Formatter {
     ///     proc_id: Some("proc-id"),
     /// }
     /// .into_formatter();
-    /// formatter.format_with_data(
+    /// formatter.write_with_data(
     ///     &mut buf,
     ///     Severity::Info,
     ///     Timestamp::CreateChronoLocal,
@@ -91,7 +93,7 @@ impl Formatter {
     ///     vec![("elem-a", vec![("param-a", "value-a")])]
     /// );
     /// ```
-    pub fn format_with_data<'a, W, TS, M, I, P>(
+    pub fn write_with_data<'a, W, TS, M, I, P>(
         &self,
         w: &mut W,
         severity: Severity,
@@ -104,18 +106,12 @@ impl Formatter {
         W: io::Write,
         TS: Into<Timestamp<'a>>,
         M: Into<Msg<'a>>,
-        I: IntoIterator<Item = (&'a SdId, P)>,
-        P: IntoIterator<Item = SdParam<'a>>,
+        I: IntoIterator<Item = (&'a SdId, P)> + 'a,
+        P: IntoIterator<Item = SdParam<'a>> + 'a,
     {
-        let data = data
-            .into_iter()
-            .map(|(id, params)| SdElement {
-                id,
-                params: params.into_iter().collect::<Vec<_>>(),
-            })
-            .collect::<Vec<_>>();
-
-        self.format_items(w, severity, timestamp, msg, msg_id, Some(data))
+        self.write_header(w, severity, timestamp, msg_id)?;
+        write_data(w, data)?;
+        write_msg(w, msg)
     }
 
     /// Format a syslog 5424 message given a simple string message.
@@ -134,7 +130,7 @@ impl Formatter {
     ///     proc_id: Some("proc-id"),
     /// }
     /// .into_formatter();
-    /// formatter.format(
+    /// formatter.write_without_data(
     ///     &mut buf,
     ///     Severity::Info,
     ///     Timestamp::CreateChronoLocal,
@@ -142,7 +138,7 @@ impl Formatter {
     ///     Some("msg-id")
     /// );
     /// ```
-    pub fn format<'a, W, TS, M>(
+    pub fn write_without_data<'a, W, TS, M>(
         &self,
         w: &mut W,
         severity: Severity,
@@ -155,23 +151,22 @@ impl Formatter {
         TS: Into<Timestamp<'a>>,
         M: Into<Msg<'a>>,
     {
-        self.format_items(w, severity, timestamp, msg, msg_id, None)
+        self.write_header(w, severity, timestamp, msg_id)?;
+        write_nil_value(w)?;
+        write_msg(w, msg)
     }
 
-    /// Format a syslog [5424](https://datatracker.ietf.org/doc/html/rfc5424#section-6) message
-    fn format_items<'a, W, TS, M>(
+    /// Write a header
+    pub fn write_header<'a, W, TS>(
         &self,
         w: &mut W,
         severity: Severity,
         timestamp: TS,
-        msg: M,
         msg_id: Option<&MsgId>,
-        data: Option<StructuredData<'a>>,
     ) -> io::Result<()>
     where
         W: io::Write,
         TS: Into<Timestamp<'a>>,
-        M: Into<Msg<'a>>,
     {
         let Self {
             facility,
@@ -181,16 +176,6 @@ impl Formatter {
         let prio = encode_priority(severity, *facility);
         let msg_id = msg_id.unwrap_or(NILVALUE);
 
-        let data: Cow<'a, str> = if let Some(data) = data {
-            if data.is_empty() {
-                NILVALUE.into()
-            } else {
-                data_to_string(data).into()
-            }
-        } else {
-            NILVALUE.into()
-        };
-
         write!(w, "<{prio}>{VERSION} ")?;
 
         let timestamp = timestamp.into();
@@ -198,36 +183,132 @@ impl Formatter {
         match timestamp {
             #[cfg(feature = "chrono")]
             Timestamp::Chrono(datetime) => {
-                format_chrono_datetime(w, datetime)?;
+                write_chrono_datetime(w, datetime)?;
             }
             #[cfg(feature = "chrono")]
             Timestamp::CreateChronoLocal => {
                 let datetime = chrono::Local::now();
-                format_chrono_datetime(w, &datetime)?;
+                write_chrono_datetime(w, &datetime)?;
             }
             Timestamp::PreformattedStr(s) => w.write_all(s.as_bytes())?,
             Timestamp::PreformattedString(s) => w.write_all(s.as_bytes())?,
-            Timestamp::None => w.write_all(NILVALUE.as_bytes())?,
+            Timestamp::None => write_nil_value(w)?,
         };
 
-        write!(w, " {host_app_proc_id} {msg_id} {data}")?;
-
-        let msg = msg.into();
-
-        match msg {
-            Msg::Utf8Str(s) => write_str_msg(w, s)?,
-            Msg::Utf8String(s) => write_str_msg(w, &s)?,
-            Msg::NonUnicodeBytes(bytes) => w.write(bytes).map(|_| ())?,
-            Msg::FmtArguments(args) => write!(w, " {args}")?,
-            Msg::FmtArgumentsRef(args) => write!(w, " {args}")?,
-        };
-
+        write!(w, " {host_app_proc_id} {msg_id}")?;
         Ok(())
     }
 }
 
+/// Write structured data with a space prefixed
+///
+/// STRUCTURED-DATA provides a mechanism to express information in a well
+/// defined, easily parseable and interpretable data format. There are
+/// multiple usage scenarios. For example, it may express meta-
+/// information about the syslog message or application-specific
+/// information such as traffic counters or IP addresses.
+///
+/// STRUCTURED-DATA can contain zero, one, or multiple structured data
+/// elements, SD-ELEMENT.
+///
+/// In case of zero structured data elements, the STRUCTURED-DATA field
+/// MUST contain the NILVALUE.
+///
+/// The character set used in STRUCTURED-DATA MUST be seven-bit ASCII in
+/// an eight-bit field as described in [RFC5234](https://datatracker.ietf.org/doc/html/rfc5234).
+/// These are the ASCII codes as defined in "USA Standard Code for Information Interchange"
+/// [ANSI.X3-4.1968](https://datatracker.ietf.org/doc/html/rfc5424#ref-ANSI.X3-4.1968).
+/// An exception is the PARAM-VALUE field, in which UTF-8 encoding MUST be used.
+///
+/// [spec](https://datatracker.ietf.org/doc/html/rfc5424#section-6.3)
+///
+/// An SD-ELEMENT consists of a name and parameter name-value pairs. The
+/// name is referred to as SD-ID. The name-value pairs are referred to
+/// as [SdParam].
+///
+/// [spec](https://datatracker.ietf.org/doc/html/rfc5424#section-6.3.1)
+pub fn write_data<'a, W, I, P>(w: &mut W, data: I) -> io::Result<()>
+where
+    W: io::Write,
+    I: IntoIterator<Item = (&'a SdId, P)> + 'a,
+    P: IntoIterator<Item = SdParam<'a>> + 'a,
+{
+    let mut elems = data.into_iter();
+
+    let Some(elem) = elems.next() else {
+        write!(w, " {NILVALUE}")?;
+        return Ok(());
+    };
+
+    write!(w, " ")?;
+    write_data_elem(w, elem)?;
+
+    while let Some(elem) = elems.next() {
+        write_data_elem(w, elem)?;
+    }
+
+    Ok(())
+}
+
+/// Write a NILVALUE ('-') prefixed with a space
+pub fn write_nil_value<'a, W>(w: &mut W) -> io::Result<()>
+where
+    W: io::Write,
+{
+    write!(w, " {NILVALUE}")?;
+    Ok(())
+}
+
+fn write_data_elem<'a, W, P>(w: &mut W, elem: (&'a SdId, P)) -> io::Result<()>
+where
+    W: io::Write,
+    P: IntoIterator<Item = SdParam<'a>> + 'a,
+{
+    let (id, params) = elem;
+
+    let mut params = params.into_iter();
+
+    let Some(param) = params.next() else {
+        write!(w, "[{id}]")?;
+        return Ok(());
+    };
+
+    let (name, value) = param;
+    write!(w, "[{id} {name}=\"{value}\"")?;
+
+    while let Some(param) = params.next() {
+        let (name, value) = param;
+        write!(w, " {name}=\"{value}\"")?;
+    }
+
+    write!(w, "]")
+}
+
+/// Write a msg with a space prefixed
+pub fn write_msg<'a, W, M>(w: &mut W, msg: M) -> io::Result<()>
+where
+    W: io::Write,
+    M: Into<Msg<'a>>,
+{
+    let msg = msg.into();
+
+    match msg {
+        Msg::Utf8Str(s) => write_str_msg(w, s),
+        Msg::Utf8String(s) => write_str_msg(w, &s),
+        Msg::NonUnicodeBytes(bytes) => {
+            w.write(&[SPACE_BYTE])?;
+            w.write(bytes).map(|_| ())
+        }
+        Msg::FmtArguments(args) => write!(w, " {args}"),
+        Msg::FmtArgumentsRef(args) => write!(w, " {args}"),
+    }
+}
+
 #[cfg(feature = "chrono")]
-fn format_chrono_datetime<W: io::Write>(w: &mut W, datetime: &ChronoLocalTime) -> io::Result<()> {
+pub fn write_chrono_datetime<W: io::Write>(
+    w: &mut W,
+    datetime: &ChronoLocalTime,
+) -> io::Result<()> {
     use chrono::Timelike;
 
     const MILLI_IN_NANO: u32 = 1000;
@@ -253,13 +334,17 @@ fn format_chrono_datetime<W: io::Write>(w: &mut W, datetime: &ChronoLocalTime) -
     Ok(())
 }
 
+/// Write a UTF8 BOM prefixed by a space
+pub fn write_utf8_bom<W: io::Write>(w: &mut W) -> io::Result<()> {
+    // the BOM is prefixed by an ASCII space
+    const BOM: [u8; 4] = [SPACE_BYTE, 0xEF, 0xBB, 0xBF];
+    w.write_all(&BOM)
+}
+
 /// Write a UTF8 string with a BOM prefixed as stated in the spec
 fn write_str_msg<W: io::Write>(w: &mut W, s: &str) -> io::Result<()> {
     if !s.is_empty() {
-        // the BOM is prefixed by an ASCII space
-        const BOM: [u8; 4] = [0x20, 0xEF, 0xBB, 0xBF];
-
-        w.write_all(&BOM)?;
+        write_utf8_bom(w)?;
         w.write_all(s.as_bytes())?;
     }
 
@@ -482,38 +567,6 @@ impl<'a> From<&'a fmt::Arguments<'a>> for Msg<'a> {
     }
 }
 
-/// STRUCTURED-DATA provides a mechanism to express information in a well
-/// defined, easily parseable and interpretable data format. There are
-/// multiple usage scenarios. For example, it may express meta-
-/// information about the syslog message or application-specific
-/// information such as traffic counters or IP addresses.
-///
-/// STRUCTURED-DATA can contain zero, one, or multiple structured data
-/// elements, [SdElement].
-///
-/// In case of zero structured data elements, the STRUCTURED-DATA field
-/// MUST contain the NILVALUE.
-///
-/// The character set used in STRUCTURED-DATA MUST be seven-bit ASCII in
-/// an eight-bit field as described in [RFC5234](https://datatracker.ietf.org/doc/html/rfc5234).
-/// These are the ASCII codes as defined in "USA Standard Code for Information Interchange"
-/// [ANSI.X3-4.1968](https://datatracker.ietf.org/doc/html/rfc5424#ref-ANSI.X3-4.1968).
-/// An exception is the PARAM-VALUE field, in which UTF-8 encoding MUST be used.
-///
-/// [spec](https://datatracker.ietf.org/doc/html/rfc5424#section-6.3)
-type StructuredData<'a> = Vec<SdElement<'a>>;
-
-/// An SD-ELEMENT consists of a name and parameter name-value pairs. The
-/// name is referred to as SD-ID. The name-value pairs are referred to
-/// as [SdParam].
-///
-/// [spec](https://datatracker.ietf.org/doc/html/rfc5424#section-6.3.1)
-#[derive(Debug)]
-struct SdElement<'a> {
-    id: &'a SdId,
-    params: Vec<SdParam<'a>>,
-}
-
 /// [SdId]s are case-sensitive and uniquely identify the type and purpose
 /// of the [SdElement]. The same [SdId] MUST NOT exist more than once in a
 /// message.
@@ -589,29 +642,6 @@ type SdParam<'a> = (ParamName<'a>, ParamValue<'a>);
 type ParamName<'a> = &'a str;
 type ParamValue<'a> = &'a str;
 
-fn data_to_string(data: Vec<SdElement<'_>>) -> String {
-    let elements = data
-        .into_iter()
-        .map(|elem| {
-            let SdElement { id, params } = elem;
-
-            if params.is_empty() {
-                format!("[{id}]")
-            } else {
-                let params = params
-                    .into_iter()
-                    .map(|(name, value)| format!("{name}=\"{value}\""))
-                    .collect::<Vec<_>>()
-                    .join(" ");
-
-                format!("[{id} {params}]")
-            }
-        })
-        .collect::<Vec<_>>();
-
-    elements.join("")
-}
-
 fn encode_priority(severity: Severity, facility: Facility) -> Priority {
     facility as u8 | severity as u8
 }
@@ -632,12 +662,107 @@ mod tests {
         let chrono_s = datetime.to_rfc3339_opts(chrono::SecondsFormat::Micros, use_z);
 
         let mut buf = Vec::with_capacity(32);
-        format_chrono_datetime(&mut buf, &datetime).unwrap();
+        write_chrono_datetime(&mut buf, &datetime).unwrap();
         let s = String::from_utf8(buf).unwrap();
 
         assert_eq!(
             chrono_s, s,
             "syslog-fmt date formatter should be char for char equal to Chrono"
+        );
+    }
+
+    #[test]
+    fn should_write_message_in_sections() {
+        let hostname = "mymachine.example.com";
+        let app_name = "su";
+        let severity = Severity::Crit;
+        let msg_id = "ID47";
+        let msg = "'su root' failed for lonvick on /dev/pts/8";
+        let fmt = Config {
+            facility: Facility::Auth,
+            hostname: hostname.into(),
+            app_name: app_name.into(),
+            proc_id: None,
+        }
+        .into_formatter();
+        let mut buf = vec![];
+
+        fmt.write_header(
+            &mut buf,
+            severity,
+            Timestamp::CreateChronoLocal,
+            Some(msg_id),
+        )
+        .unwrap();
+
+        // we are not using any structured data
+        write_nil_value(&mut buf).unwrap();
+        write_msg(&mut buf, msg).unwrap();
+
+        let parts = parse_syslog_message(&buf);
+        assert_matches!(
+            parts,
+            Parts {
+                prio: "<34>1",
+                timestamp: _,
+                hostname: "mymachine.example.com",
+                app_name: "su",
+                proc_id: NILVALUE,
+                msg_id,
+                data: NILVALUE,
+                msg
+            } if msg_id == msg_id && msg == msg
+        );
+    }
+
+    #[test]
+    fn should_write_message_with_custom_formatting() {
+        use std::io::Write;
+
+        let hostname = "mymachine.example.com";
+        let app_name = "su";
+        let severity = Severity::Crit;
+        let msg_id = "ID47";
+        let fmt = Config {
+            facility: Facility::Auth,
+            hostname: hostname.into(),
+            app_name: app_name.into(),
+            proc_id: None,
+        }
+        .into_formatter();
+        let mut buf = vec![];
+
+        fmt.write_header(
+            &mut buf,
+            severity,
+            Timestamp::CreateChronoLocal,
+            Some(msg_id),
+        )
+        .unwrap();
+
+        // we are not using any structured data
+        write_nil_value(&mut buf).unwrap();
+        write_utf8_bom(&mut buf).unwrap();
+
+        let msg = "'su root' failed for lonvick on /dev/pts/8";
+        let module = "app::connection";
+        let lineno = "101";
+        write!(&mut buf, "{module} l:{lineno} {msg}").unwrap();
+
+        let parts = parse_syslog_message(&buf);
+        let comp = format!("{module} l:{lineno} {msg}");
+        assert_matches!(
+            parts,
+            Parts {
+                prio: "<34>1",
+                timestamp: _,
+                hostname: "mymachine.example.com",
+                app_name: "su",
+                proc_id: NILVALUE,
+                msg_id,
+                data: NILVALUE,
+                msg
+            } if msg_id == msg_id && msg == comp
         );
     }
 
@@ -655,7 +780,7 @@ mod tests {
         }
         .into_formatter();
         let mut buf = vec![];
-        fmt.format(&mut buf, severity, Timestamp::CreateChronoLocal, msg, None)
+        fmt.write_without_data(&mut buf, severity, Timestamp::CreateChronoLocal, msg, None)
             .unwrap();
 
         let parts = parse_syslog_message(&buf);
@@ -691,7 +816,7 @@ mod tests {
         .into_formatter();
         let mut buf = vec![];
 
-        fmt.format(
+        fmt.write_without_data(
             &mut buf,
             severity,
             Timestamp::CreateChronoLocal,
@@ -732,7 +857,7 @@ mod tests {
         .into_formatter();
         let mut buf = vec![];
 
-        fmt.format_with_data(
+        fmt.write_with_data(
             &mut buf,
             severity,
             Timestamp::CreateChronoLocal,
@@ -782,7 +907,7 @@ mod tests {
         .into_formatter();
         let mut buf = vec![];
 
-        fmt.format_with_data(
+        fmt.write_with_data(
             &mut buf,
             severity,
             Timestamp::CreateChronoLocal,
@@ -835,7 +960,7 @@ mod tests {
         let mut buf = ArrayVec::<u8, 100>::new();
 
         let err = fmt
-            .format_items(&mut buf, severity, timestamp, msg, None, None)
+            .write_without_data(&mut buf, severity, timestamp, msg, None)
             .unwrap_err();
 
         assert_eq!(
@@ -863,58 +988,53 @@ mod tests {
 
     #[test]
     fn should_fmt_structured_data() {
-        assert_eq!(data_to_string(vec![]), "");
+        use arrayvec::ArrayVec;
 
+        let mut buf = ArrayVec::<u8, 100>::new();
+
+        buf.clear();
+
+        write_data::<_, [(&str, [(&str, &str); 0]); 0], _>(&mut buf, []).unwrap();
+        assert_eq!(std::str::from_utf8(&buf).unwrap(), " -");
+
+        buf.clear();
+        write_data(&mut buf, [("first", [])]).unwrap();
+        assert_eq!(std::str::from_utf8(&buf).unwrap(), " [first]");
+
+        buf.clear();
+        write_data(&mut buf, [("first", []), ("second", [])]).unwrap();
+        assert_eq!(std::str::from_utf8(&buf).unwrap(), " [first][second]");
+
+        buf.clear();
+        write_data(&mut buf, [("first", [("p-one", "pv-one")])]).unwrap();
         assert_eq!(
-            data_to_string(vec![SdElement {
-                id: "first",
-                params: vec![],
-            }]),
-            "[first]"
+            std::str::from_utf8(&buf).unwrap(),
+            r#" [first p-one="pv-one"]"#
         );
 
+        buf.clear();
+        write_data(
+            &mut buf,
+            [("first", [("p-one", "pv-one"), ("p-two", "pv-two")])],
+        )
+        .unwrap();
         assert_eq!(
-            data_to_string(vec![
-                SdElement {
-                    id: "first",
-                    params: vec![],
-                },
-                SdElement {
-                    id: "second",
-                    params: vec![],
-                }
-            ]),
-            "[first][second]"
+            std::str::from_utf8(&buf).unwrap(),
+            r#" [first p-one="pv-one" p-two="pv-two"]"#
         );
 
+        buf.clear();
+        write_data(
+            &mut buf,
+            [
+                ("first", [("p-one", "pv-one"), ("p-two", "pv-two")]),
+                ("second", [("p-one", "pv-one"), ("p-two", "pv-two")]),
+            ],
+        )
+        .unwrap();
         assert_eq!(
-            data_to_string(vec![SdElement {
-                id: "first",
-                params: vec![("p-one", "pv-one")],
-            }]),
-            r#"[first p-one="pv-one"]"#
-        );
-
-        assert_eq!(
-            data_to_string(vec![SdElement {
-                id: "first",
-                params: vec![("p-one", "pv-one"), ("p-two", "pv-two")],
-            }]),
-            r#"[first p-one="pv-one" p-two="pv-two"]"#
-        );
-
-        assert_eq!(
-            data_to_string(vec![
-                SdElement {
-                    id: "first",
-                    params: vec![("p-one", "pv-one"), ("p-two", "pv-two")],
-                },
-                SdElement {
-                    id: "second",
-                    params: vec![("p-one", "pv-one"), ("p-two", "pv-two")],
-                }
-            ]),
-            r#"[first p-one="pv-one" p-two="pv-two"][second p-one="pv-one" p-two="pv-two"]"#
+            std::str::from_utf8(&buf).unwrap(),
+            r#" [first p-one="pv-one" p-two="pv-two"][second p-one="pv-one" p-two="pv-two"]"#
         );
     }
 

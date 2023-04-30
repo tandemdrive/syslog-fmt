@@ -24,7 +24,7 @@ fn main() -> io::Result<()> {
 
     let mut buf = ArrayVec::<u8, 128>::new();
 
-    formatter.format(
+    formatter.write_without_data(
         &mut buf,
         Severity::Info,
         Timestamp::CreateChronoLocal,
