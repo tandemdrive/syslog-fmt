@@ -19,7 +19,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Renamed `format_*` fns to `write_*` to emphasize that they utilize a Writer.
 - timestamp formatting uses a custom formatter that doesn't allocate on the heap.
-- formatting a messsage with and without structured data does not perform any
+- formatting a message with and without structured data does not perform any
   heap allocations. See the test folder for verifications of this.
 
 ### Removed
