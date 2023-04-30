@@ -243,19 +243,10 @@ where
     write!(w, " ")?;
     write_data_elem(w, elem)?;
 
-    while let Some(elem) = elems.next() {
+    for elem in elems {
         write_data_elem(w, elem)?;
     }
 
-    Ok(())
-}
-
-/// Write a NILVALUE ('-') prefixed with a space
-pub fn write_nil_value<'a, W>(w: &mut W) -> io::Result<()>
-where
-    W: io::Write,
-{
-    write!(w, " {NILVALUE}")?;
     Ok(())
 }
 
@@ -276,7 +267,7 @@ where
     let (name, value) = param;
     write!(w, "[{id} {name}=\"{value}\"")?;
 
-    while let Some(param) = params.next() {
+    for param in params {
         let (name, value) = param;
         write!(w, " {name}=\"{value}\"")?;
     }
@@ -296,12 +287,24 @@ where
         Msg::Utf8Str(s) => write_str_msg(w, s),
         Msg::Utf8String(s) => write_str_msg(w, &s),
         Msg::NonUnicodeBytes(bytes) => {
-            w.write(&[SPACE_BYTE])?;
-            w.write(bytes).map(|_| ())
+            let bytes_written = w.write(&[SPACE_BYTE])?;
+            debug_assert_eq!(bytes_written, 1);
+            let bytes_written = w.write(bytes)?;
+            debug_assert_eq!(bytes_written, bytes.len());
+            Ok(())
         }
         Msg::FmtArguments(args) => write!(w, " {args}"),
         Msg::FmtArgumentsRef(args) => write!(w, " {args}"),
     }
+}
+
+/// Write a NILVALUE ('-') prefixed with a space
+pub fn write_nil_value<W>(w: &mut W) -> io::Result<()>
+where
+    W: io::Write,
+{
+    write!(w, " {NILVALUE}")?;
+    Ok(())
 }
 
 #[cfg(feature = "chrono")]
