@@ -40,7 +40,7 @@ mod unix {
             if self.enabled(record.metadata()) {
                 let mut buf = self.buf.lock();
 
-                let res = self.formatter.format(
+                let res = self.formatter.write_without_data(
                     &mut *buf,
                     Severity::Info,
                     Timestamp::CreateChronoLocal,
@@ -80,7 +80,7 @@ mod unix {
             if self.enabled(record.metadata()) {
                 let mut buf = self.buf.lock();
 
-                let res = self.formatter.format(
+                let res = self.formatter.write_without_data(
                     &mut *buf,
                     Severity::Info,
                     Timestamp::CreateChronoLocal,

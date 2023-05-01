@@ -25,15 +25,15 @@ fn main() -> io::Result<()> {
     let mut buf = ArrayVec::<u8, 256>::new();
 
     formatter
-        .format_with_data(
+        .write_with_data(
             &mut buf,
             Severity::Info,
             Timestamp::CreateChronoLocal,
             "'su root' failed for lonvick on /dev/pts/8",
             None,
-            vec![(
+            [(
                 "exampleSDID@32473",
-                vec![
+                [
                     ("iut", "3"),
                     ("eventSource", "Application"),
                     ("eventID", "1011"),
@@ -44,7 +44,7 @@ fn main() -> io::Result<()> {
 
     let stats = dhat::HeapStats::get();
 
-    dhat::assert_eq!(stats.total_bytes, 589);
+    dhat::assert_eq!(stats.total_bytes, 0);
 
     Ok(())
 }

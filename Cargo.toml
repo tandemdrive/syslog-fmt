@@ -27,9 +27,9 @@ log = "0.4.17"
 parking_lot = "0.12.1"
 
 [[test]]
-name = "assert_no_heap_allocations"
+name = "assert_no_heap_allocations_without_structured_data"
 harness = false
 
 [[test]]
-name = "assert_heap_allocations_with_structured_data"
+name = "assert_no_heap_allocations_with_structured_data"
 harness = false
