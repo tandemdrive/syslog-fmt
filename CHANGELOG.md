@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- Added the Cargo.lock file to the git repo
+  See: https://blog.rust-lang.org/2023/08/29/committing-lockfiles.html
+- Upgrade dependencies
+
 ## [0.3.1] - 2023-05-01
 
 ### Added
