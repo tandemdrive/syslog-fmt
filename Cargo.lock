@@ -497,7 +497,6 @@ dependencies = [
  "chrono",
  "dhat",
  "env_logger",
- "is-terminal",
  "log",
  "parking_lot",
 ]

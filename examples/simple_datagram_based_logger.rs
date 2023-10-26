@@ -10,12 +10,11 @@ fn main() -> io::Result<()> {
 #[cfg(unix)]
 mod unix {
     use std::{
-        io::{self, Write},
+        io::{self, IsTerminal, Write},
         os::unix::net::UnixDatagram,
     };
 
     use arrayvec::ArrayVec;
-    use is_terminal::IsTerminal;
     use parking_lot::Mutex;
     use syslog_fmt::{
         v5424::{self, Timestamp},
